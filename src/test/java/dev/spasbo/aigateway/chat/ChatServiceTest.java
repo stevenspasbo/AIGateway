@@ -1,0 +1,64 @@
+package dev.spasbo.aigateway.chat;
+
+import dev.spasbo.aigateway.identity.CurrentUser;
+import dev.spasbo.aigateway.identity.Role;
+import dev.spasbo.aigateway.testsupport.FakeChatModel;
+import dev.spasbo.aigateway.testsupport.MutableClock;
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.messages.MessageType;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class ChatServiceTest {
+
+    static final ModelDefinition LLAMA = new ModelDefinition("llama3.2:1b", "ollama");
+    static final CurrentUser ALICE = new CurrentUser(UUID.randomUUID(), UUID.randomUUID(), "sub-1", Role.USER);
+
+    final MutableClock clock = new MutableClock(Instant.parse("2026-10-28T12:00:00Z"));
+    final FakeChatModel model = new FakeChatModel().onCall(() -> clock.advance(Duration.ofMillis(420)));
+    final ChatService service = new ChatService(model, clock);
+
+    @Test
+    void returnsTheReplyWithProviderReportedTokens() {
+        model.reply("Hello from the fake", 12, 5);
+
+        ChatResult result = service.chat(ALICE, LLAMA, "Hi");
+
+        assertThat(result).isEqualTo(new ChatResult("Hello from the fake", "llama3.2:1b", 12, 5, 420));
+    }
+
+    @Test
+    void sendsTheMessageAsASingleUserTurn() {
+        model.reply("ok", 1, 1);
+
+        service.chat(ALICE, LLAMA, "What is FedRAMP?");
+
+        var instructions = model.lastPrompt().getInstructions();
+        assertThat(instructions).hasSize(1);
+        assertThat(instructions.getFirst().getMessageType()).isEqualTo(MessageType.USER);
+        assertThat(instructions.getFirst().getText()).isEqualTo("What is FedRAMP?");
+    }
+
+    @Test
+    void requestsTheChosenModelPerCall() {
+        model.reply("ok", 1, 1);
+
+        service.chat(ALICE, new ModelDefinition("qwen3:0.6b", "ollama"), "Hi");
+
+        assertThat(model.lastPrompt().getOptions().getModel()).isEqualTo("qwen3:0.6b");
+    }
+
+    @Test
+    void missingUsageCountsAsZeroTokensNotAnEstimate() {
+        model.replyWithoutUsage("ok");
+
+        ChatResult result = service.chat(ALICE, LLAMA, "Hi");
+
+        assertThat(result.inputTokens()).isZero();
+        assertThat(result.outputTokens()).isZero();
+    }
+}

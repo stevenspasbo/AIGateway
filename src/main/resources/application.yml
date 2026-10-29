@@ -12,3 +12,9 @@ spring:
           # Discovery is lazy, so the app starts even if Keycloak is not up yet
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ai-gateway}
           audiences: ai-gateway-api
+
+gateway:
+  # The allowlist: a chat request naming any other model gets a 400 before a provider is called.
+  models:
+    - id: ${OLLAMA_MODEL:llama3.2:1b}
+      provider: ollama

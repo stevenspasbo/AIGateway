@@ -1,48 +1,32 @@
 package dev.spasbo.aigateway.config;
 
-import dev.spasbo.aigateway.identity.CurrentUser;
-import dev.spasbo.aigateway.identity.IdentityService;
-import dev.spasbo.aigateway.identity.Role;
-import org.junit.jupiter.api.BeforeEach;
+import dev.spasbo.aigateway.web.ApiSliceTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.assertj.MockMvcTester;
-
-import java.util.UUID;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
-@WebMvcTest
-@Import(SecurityConfig.class)
-class SecurityConfigTest {
+@WebMvcTest(SecurityConfigTest.ProbeController.class)
+@Import(SecurityConfigTest.ProbeController.class)
+class SecurityConfigTest extends ApiSliceTest {
 
-    @Autowired
-    MockMvcTester mvc;
-
-    @MockitoBean
-    JwtDecoder jwtDecoder;
-
-    @MockitoBean
-    IdentityService identityService;
-
-    @BeforeEach
-    void resolveEveryCaller() {
-        when(identityService.resolve(any()))
-                .thenReturn(new CurrentUser(UUID.randomUUID(), UUID.randomUUID(), "sub-1", Role.USER));
+    @RestController
+    static class ProbeController {
+        @GetMapping({"/api/probe", "/internal"})
+        String probe() {
+            return "ok";
+        }
     }
 
     @Test
     void apiWithoutTokenIsUnauthorized() {
-        var result = mvc.post().uri("/api/chat").exchange();
+        var result = mvc.get().uri("/api/probe").exchange();
 
         assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(result.getResponse().getHeader("WWW-Authenticate")).startsWith("Bearer");
@@ -50,22 +34,19 @@ class SecurityConfigTest {
 
     @Test
     void userRolePassesAuthorization() {
-        // No controller in this slice, so getting past security shows up as 404, not 401/403.
-        var result = mvc.post().uri("/api/chat").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))).exchange();
-
-        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(mvc.get().uri("/api/probe").with(user()).exchange()).hasStatus(HttpStatus.OK);
     }
 
     @Test
     void adminRolePassesAuthorization() {
-        var result = mvc.post().uri("/api/chat").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))).exchange();
+        var result = mvc.get().uri("/api/probe").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))).exchange();
 
-        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(result).hasStatus(HttpStatus.OK);
     }
 
     @Test
     void tokenWithoutGatewayRoleIsForbidden() {
-        var result = mvc.post().uri("/api/chat").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_profile"))).exchange();
+        var result = mvc.get().uri("/api/probe").with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_profile"))).exchange();
 
         assertThat(result).hasStatus(HttpStatus.FORBIDDEN);
     }

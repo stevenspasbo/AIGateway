@@ -1,5 +1,9 @@
 package dev.spasbo.aigateway.config;
 
+import dev.spasbo.aigateway.identity.CurrentUser;
+import dev.spasbo.aigateway.identity.IdentityService;
+import dev.spasbo.aigateway.identity.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -10,7 +14,11 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @WebMvcTest
@@ -22,6 +30,15 @@ class SecurityConfigTest {
 
     @MockitoBean
     JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    IdentityService identityService;
+
+    @BeforeEach
+    void resolveEveryCaller() {
+        when(identityService.resolve(any()))
+                .thenReturn(new CurrentUser(UUID.randomUUID(), UUID.randomUUID(), "sub-1", Role.USER));
+    }
 
     @Test
     void apiWithoutTokenIsUnauthorized() {

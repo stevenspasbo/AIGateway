@@ -11,9 +11,11 @@ public class IdentityService {
     public static final String TENANT_CLAIM = "tenant_id";
 
     private final TenantRepository tenants;
+    private final AppUserRepository users;
 
-    public IdentityService(TenantRepository tenants) {
+    public IdentityService(TenantRepository tenants, AppUserRepository users) {
         this.tenants = tenants;
+        this.users = users;
     }
 
     public CurrentUser resolve(Jwt jwt) {
@@ -23,7 +25,8 @@ public class IdentityService {
         }
         // Authorization runs before this, so a gateway role is always present here
         Role role = Role.highestOf(JwtRolesConverter.rolesOf(jwt)).orElseThrow();
-        return new CurrentUser(tenantId, null, jwt.getSubject(), role);
+        UUID userId = users.upsert(tenantId, jwt.getSubject(), role);
+        return new CurrentUser(tenantId, userId, jwt.getSubject(), role);
     }
 
     private static UUID tenantIdOf(Jwt jwt) {

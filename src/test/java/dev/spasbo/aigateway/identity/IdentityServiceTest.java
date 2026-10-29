@@ -9,6 +9,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class IdentityServiceTest {
@@ -16,16 +17,27 @@ class IdentityServiceTest {
     static final UUID TENANT = UUID.fromString("7f3c1e2a-5b8d-4c6e-9a0f-3d2b1c4e5f60");
 
     final TenantRepository tenants = mock(TenantRepository.class);
-    final IdentityService identity = new IdentityService(tenants);
+    final AppUserRepository users = mock(AppUserRepository.class);
+    final IdentityService identity = new IdentityService(tenants, users);
 
     @Test
-    void knownTenantResolves() {
+    void knownTenantResolvesToTheUpsertedUser() {
+        UUID userId = UUID.randomUUID();
         when(tenants.existsById(TENANT)).thenReturn(true);
+        when(users.upsert(TENANT, "sub-1", Role.USER)).thenReturn(userId);
 
         CurrentUser user = identity.resolve(jwt(TENANT.toString()));
 
-        assertThat(user.tenantId()).isEqualTo(TENANT);
-        assertThat(user.role()).isEqualTo(Role.USER);
+        assertThat(user).isEqualTo(new CurrentUser(TENANT, userId, "sub-1", Role.USER));
+    }
+
+    @Test
+    void unknownTenantNeverCreatesAUser() {
+        when(tenants.existsById(TENANT)).thenReturn(false);
+
+        assertThatThrownBy(() -> identity.resolve(jwt(TENANT.toString())));
+
+        verifyNoInteractions(users);
     }
 
     @Test

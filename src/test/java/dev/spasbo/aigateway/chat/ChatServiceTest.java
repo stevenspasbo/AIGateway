@@ -2,6 +2,9 @@ package dev.spasbo.aigateway.chat;
 
 import dev.spasbo.aigateway.identity.CurrentUser;
 import dev.spasbo.aigateway.identity.Role;
+import dev.spasbo.aigateway.metering.CallStatus;
+import dev.spasbo.aigateway.metering.MeteringService;
+import dev.spasbo.aigateway.metering.ModelCall;
 import dev.spasbo.aigateway.testsupport.FakeChatModel;
 import dev.spasbo.aigateway.testsupport.MutableClock;
 import org.junit.jupiter.api.Test;
@@ -12,6 +15,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class ChatServiceTest {
 
@@ -20,7 +25,8 @@ class ChatServiceTest {
 
     final MutableClock clock = new MutableClock(Instant.parse("2026-10-28T12:00:00Z"));
     final FakeChatModel model = new FakeChatModel().onCall(() -> clock.advance(Duration.ofMillis(420)));
-    final ChatService service = new ChatService(model, clock);
+    final MeteringService metering = mock(MeteringService.class);
+    final ChatService service = new ChatService(model, metering, clock);
 
     @Test
     void returnsTheReplyWithProviderReportedTokens() {
@@ -29,6 +35,15 @@ class ChatServiceTest {
         ChatResult result = service.chat(ALICE, LLAMA, "Hi");
 
         assertThat(result).isEqualTo(new ChatResult("Hello from the fake", "llama3.2:1b", 12, 5, 420));
+    }
+
+    @Test
+    void metersEachSuccessfulCall() {
+        model.reply("Hello", 12, 5);
+
+        service.chat(ALICE, LLAMA, "Hi");
+
+        verify(metering).record(new ModelCall(ALICE.tenantId(), ALICE.userId(), "llama3.2:1b", 12, 5, 420, CallStatus.SUCCESS));
     }
 
     @Test

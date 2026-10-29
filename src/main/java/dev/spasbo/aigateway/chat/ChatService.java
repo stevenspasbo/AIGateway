@@ -1,6 +1,9 @@
 package dev.spasbo.aigateway.chat;
 
 import dev.spasbo.aigateway.identity.CurrentUser;
+import dev.spasbo.aigateway.metering.CallStatus;
+import dev.spasbo.aigateway.metering.MeteringService;
+import dev.spasbo.aigateway.metering.ModelCall;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -17,10 +20,12 @@ import java.time.Instant;
 public class ChatService {
 
     private final ChatModel chatModel;
+    private final MeteringService metering;
     private final Clock clock;
 
-    public ChatService(ChatModel chatModel, Clock clock) {
+    public ChatService(ChatModel chatModel, MeteringService metering, Clock clock) {
         this.chatModel = chatModel;
+        this.metering = metering;
         this.clock = clock;
     }
 
@@ -30,8 +35,11 @@ public class ChatService {
         long latencyMs = Duration.between(start, clock.instant()).toMillis();
 
         Usage usage = response.getMetadata().getUsage();
-        return new ChatResult(response.getResult().getOutput().getText(), model.id(),
+        var result = new ChatResult(response.getResult().getOutput().getText(), model.id(),
                 tokens(usage.getPromptTokens()), tokens(usage.getCompletionTokens()), latencyMs);
+        metering.record(new ModelCall(user.tenantId(), user.userId(), model.id(),
+                result.inputTokens(), result.outputTokens(), latencyMs, CallStatus.SUCCESS));
+        return result;
     }
 
     /**

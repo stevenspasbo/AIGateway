@@ -5,3 +5,10 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:aigateway}
     username: ${DB_USERNAME:aigateway}
     password: ${DB_PASSWORD:aigateway-dev-only}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Discovery is lazy, so the app starts even if Keycloak is not up yet
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ai-gateway}
+          audiences: ai-gateway-api

@@ -1,0 +1,4 @@
+# Local development profile: seeds the dev tenant that the Keycloak realm's users belong to.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/local

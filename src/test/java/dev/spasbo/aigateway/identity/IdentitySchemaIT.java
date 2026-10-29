@@ -63,6 +63,14 @@ class IdentitySchemaIT {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void devTenantIsNotSeededOutsideLocalProfile() {
+        Integer count = jdbc.sql("select count(*) from tenant where id = ?")
+                .param(LocalProfileSeedIT.LOCAL_TENANT_ID).query(Integer.class).single();
+
+        assertThat(count).isZero();
+    }
+
     private UUID insertTenant(String name) {
         UUID id = UUID.randomUUID();
         jdbc.sql("insert into tenant (id, name, monthly_token_budget) values (?, ?, ?)")

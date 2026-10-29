@@ -9,12 +9,16 @@ import dev.spasbo.aigateway.testsupport.FakeChatModel;
 import dev.spasbo.aigateway.testsupport.MutableClock;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -44,6 +48,26 @@ class ChatServiceTest {
         service.chat(ALICE, LLAMA, "Hi");
 
         verify(metering).record(new ModelCall(ALICE.tenantId(), ALICE.userId(), "llama3.2:1b", 12, 5, 420, CallStatus.SUCCESS));
+    }
+
+    @Test
+    void failedCallIsMeteredAsErrorWithZeroTokensAndRealLatency() {
+        model.fail(new ResourceAccessException("Connection refused"));
+
+        assertThatThrownBy(() -> service.chat(ALICE, LLAMA, "Hi"))
+                .isInstanceOf(ModelCallFailedException.class)
+                .hasRootCauseInstanceOf(ResourceAccessException.class);
+
+        verify(metering).record(new ModelCall(ALICE.tenantId(), ALICE.userId(), "llama3.2:1b", 0, 0, 420, CallStatus.ERROR));
+    }
+
+    @Test
+    void responseWithoutAGenerationIsAFailure() {
+        model.respond(new ChatResponse(List.of()));
+
+        assertThatThrownBy(() -> service.chat(ALICE, LLAMA, "Hi")).isInstanceOf(ModelCallFailedException.class);
+
+        verify(metering).record(new ModelCall(ALICE.tenantId(), ALICE.userId(), "llama3.2:1b", 0, 0, 420, CallStatus.ERROR));
     }
 
     @Test

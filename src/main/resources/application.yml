@@ -5,6 +5,16 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:aigateway}
     username: ${DB_USERNAME:aigateway}
     password: ${DB_PASSWORD:aigateway-dev-only}
+  ai:
+    ollama:
+      # Compose's container by default; point at a native install (much faster on Apple silicon) the same way
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        model: ${OLLAMA_MODEL:llama3.2:1b}
+    retry:
+      # Spring AI maps this to maxRetries (default 10, exponential backoff). 0 means one attempt and no
+      # retries, so latency_ms measures a single real call. Resilience4j retries and breakers arrive in M3.
+      max-attempts: 0
   security:
     oauth2:
       resourceserver:

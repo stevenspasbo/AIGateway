@@ -48,9 +48,11 @@ public class ChatService {
             throw new ModelCallFailedException(model.id(), "provider returned no generation");
         }
 
+        // Token counts are the provider's own. Spring AI 2.0 makes them non-null: a provider that reports
+        // nothing yields an EmptyUsage of zeros, which is recorded as-is rather than estimated from text.
         Usage usage = response.getMetadata().getUsage();
         var result = new ChatResult(generation.getOutput().getText(), model.id(),
-                tokens(usage.getPromptTokens()), tokens(usage.getCompletionTokens()), latencyMs);
+                usage.getPromptTokens(), usage.getCompletionTokens(), latencyMs);
         meter(user, model, result.inputTokens(), result.outputTokens(), latencyMs, CallStatus.SUCCESS);
         return result;
     }
@@ -70,10 +72,5 @@ public class ChatService {
 
     private long elapsedMs(Instant start) {
         return Duration.between(start, clock.instant()).toMillis();
-    }
-
-    /** Providers may omit usage; record zero rather than guessing from text length. */
-    private static int tokens(Integer reported) {
-        return reported == null ? 0 : reported;
     }
 }
